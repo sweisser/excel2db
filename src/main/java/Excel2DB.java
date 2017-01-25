@@ -281,7 +281,7 @@ public class Excel2DB {
         } else if (type == CellType.NUMERIC && cellTypeMeta == DataType.VARCHAR2) {
             double dataNum = cell.getNumericCellValue();
             sqlInsert.append("'");
-            sqlInsert.append(escapeSQLAttribute(Double.toString(dataNum));
+            sqlInsert.append(escapeSQLAttribute(Double.toString(dataNum)));
             sqlInsert.append("'");
 
         } else if (type == CellType.STRING && cellTypeMeta == DataType.INTEGER) {
