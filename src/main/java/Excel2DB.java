@@ -28,6 +28,7 @@ import java.util.List;
  * DONE Generate TABLE Drop Statements if requested.
  * DONE Collect Metadata.
  * TODO Make Insert attribute writes more safe by using Prepared Statements.
+ * TODO Encapsulate different SQL dialects.
  *
  * Created by q186379 on 24.01.2017.
  */
@@ -41,23 +42,28 @@ public class Excel2DB {
     List<TableDesc> tableDescList;
 
     public static void main(String[] args) {
-        // String filename = args[1];
-        String filename = null;
+        // Set defaults
+        String filename = "data.xlsx";
+        String jdbcDriverClassName = "org.h2.Driver";
+        String jdbcUrl = "jdbc:h2:~/test2";
+        String jdbcUser = "sa";
+        String jdbcPassword = null;
 
-        if (args.length >= 1) {
+        if (args.length == 1) {
             filename = args[0];
-        } else {
-            filename = "c:/portal_m_dev/workspace/excel2db/src/main/resources/sample.xlsx";
+        } else if (args.length == 5) {
+            filename = args[0];
+            jdbcDriverClassName = args[1];
+            jdbcUrl = args[2];
+            jdbcUser = args[3];
+            jdbcPassword = args[4];
         }
-        new Excel2DB().run(filename);
+
+        new Excel2DB().run(filename, jdbcDriverClassName, jdbcUrl, jdbcUser, jdbcPassword);
     }
 
     public Excel2DB() {
         tableDescList = new ArrayList<>();
-    }
-
-    public void run(String filename) {
-        run(filename, "org.h2.Driver", "jdbc:h2:~/test2", "sa", null);
     }
 
     public void run(String filename, String jdbcDriverClassName, String jdbcUrl, String jdbcUsername, String jdbcPassword) {
@@ -296,16 +302,14 @@ public class Excel2DB {
             DateFormat df = new SimpleDateFormat("dd MM yyyy");
             java.util.Date date = cell.getDateCellValue();
 
-            // PARSEDATETIME('26 Jul 2016, 05:15:58 AM','dd MMM yyyy, hh:mm:ss a','en')
-
             // H2 Syntax
+            // PARSEDATETIME('26 Jul 2016, 05:15:58 AM','dd MMM yyyy, hh:mm:ss a','en')
             sqlInsert.append("PARSEDATETIME(");
             sqlInsert.append("'");
             sqlInsert.append(df.format(date));
             sqlInsert.append("',");
             sqlInsert.append("'dd MM yyyy','en')");
         }
-
     }
 
     private void processCellEmpty(StringBuffer sqlInsert, DataType cellTypeMeta) {
