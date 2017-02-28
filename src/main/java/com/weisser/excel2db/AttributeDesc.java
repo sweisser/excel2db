@@ -1,3 +1,5 @@
+package com.weisser.excel2db;
+
 /**
  * Created by q186379 on 25.01.2017.
  */

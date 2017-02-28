@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.bmw</groupId>
   <artifactId>excel2db</artifactId>
-  <version>1.0-STABLE</version>
+  <version>1.1-SNAPSHOT</version>
   <build>
     <plugins>
       <plugin>
@@ -27,7 +27,7 @@
         <configuration>
           <transformers>
             <transformer>
-              <mainClass>Excel2DB</mainClass>
+              <mainClass>com.weisser.excel2db.Excel2DB</mainClass>
             </transformer>
           </transformers>
         </configuration>

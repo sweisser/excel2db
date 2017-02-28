@@ -1,3 +1,5 @@
+package com.weisser.excel2db;
+
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFCellStyle;
 import org.apache.poi.xssf.usermodel.XSSFFont;
@@ -16,15 +18,23 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.lang.System.exit;
+
 /**
- * A little tool to import data from an excel file into a JDBC database.
+ * A little tool to quickly import tabular data from an excel file to a JDBC database.
  *
- * Sheet -> tables
- * Row1 -> Attributes names
- * Row2 -> Attribute types
+ * Every Excel sheet becomes a table in the database.
+ * Row1 of the sheet holds the attributes names
+ * Row2 of the sheet holds attribute types and primary key marker (if text is bold).
+ * Table definition has to start at top left corner.
  *
+ * TODO Implement more datatypes. Conversion rules will get pretty complex, so take care! Allow sets of types in the rules to make it manageable.
+ * TODO Datatypes: H2: INTEGER, BIGINT, DECIMAL, ...
+ * TODO Datatypes are database specific...
+ * TODO Better verification of datatypes in header (are they all valid and supported by excel2db for the given dialect?)
  * TODO Two modes: DIRECT MODE (writes directly) and SQL MODE (just generate SQL statements to stdout)
  * TODO Usage info
+ * TODO Commit strategies: Per INSERT, Per TABLE, Per IMPORT
  * DONE Generate TABLE Drop Statements if requested.
  * DONE Collect Metadata.
  * TODO Make Insert attribute writes more safe by using Prepared Statements.
@@ -44,19 +54,31 @@ public class Excel2DB {
     public static void main(String[] args) {
         // Set defaults
         String filename = "data.xlsx";
+        String jdbcUrl = "jdbc:h2:~/test";
         String jdbcDriverClassName = "org.h2.Driver";
-        String jdbcUrl = "jdbc:h2:~/test2";
         String jdbcUser = "sa";
         String jdbcPassword = null;
 
-        if (args.length == 1) {
+        if (args.length >= 1) {
             filename = args[0];
-        } else if (args.length == 5) {
-            filename = args[0];
-            jdbcDriverClassName = args[1];
-            jdbcUrl = args[2];
-            jdbcUser = args[3];
-            jdbcPassword = args[4];
+        } else {
+            showUsage();
+            exit(1);
+        }
+        if (args.length >= 2) {
+            jdbcUrl = args[1];
+        }
+        if (args.length >= 3) {
+            jdbcDriverClassName = args[2];
+        }
+        if (args.length >= 4) {
+            jdbcDriverClassName = args[3];
+        }
+        if (args.length >= 5) {
+            jdbcUser = args[4];
+        }
+        if (args.length >= 6) {
+            jdbcPassword = args[5];
         }
 
         new Excel2DB().run(filename, jdbcDriverClassName, jdbcUrl, jdbcUser, jdbcPassword);
@@ -66,6 +88,15 @@ public class Excel2DB {
         tableDescList = new ArrayList<>();
     }
 
+    /**
+     * Main part.
+     *
+     * @param filename
+     * @param jdbcDriverClassName
+     * @param jdbcUrl
+     * @param jdbcUsername
+     * @param jdbcPassword
+     */
     public void run(String filename, String jdbcDriverClassName, String jdbcUrl, String jdbcUsername, String jdbcPassword) {
         // Connect to database
         connectDB(jdbcDriverClassName, jdbcUrl, jdbcUsername, jdbcPassword);
@@ -75,6 +106,7 @@ public class Excel2DB {
             InputStream inp = new FileInputStream(filename);
 
             XSSFWorkbook wb = null;
+
             try {
                 wb = new XSSFWorkbook(inp);
 
@@ -92,7 +124,7 @@ public class Excel2DB {
                     TableDesc tabledesc = new TableDesc(tablename);
                     tableDescList.add(tabledesc);
 
-                    // TODO Drop table first
+                    // Drop tables first, if requested
                     if (dropTablesFirst) {
                         StringBuffer sqlDrop = new StringBuffer();
                         sqlCreate.append("DROP TABLE IF EXISTS ");
@@ -108,7 +140,7 @@ public class Excel2DB {
                     sqlCreate.append(tablename);
                     sqlCreate.append(" ( ");
 
-                    // Generate schema
+                    // Generate schema scripts
 
                     // Get the column names from row a of each sheet
                     // Get the datatypes from second column
@@ -197,6 +229,9 @@ public class Excel2DB {
                         }
                     }
                 }
+
+                // Commit after each tables inserts
+                executeCommit();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -252,6 +287,13 @@ public class Excel2DB {
         }
     }
 
+    private void executeCommit() {
+        try {
+            connection.commit();
+        } catch (SQLException e ) {
+            e.printStackTrace();
+        }
+    }
 
     private boolean isBold(Workbook wb, Cell cell) {
         boolean isBold = false;
@@ -274,23 +316,34 @@ public class Excel2DB {
     }
 
     // Mapping:
-    // DataType    CellType    Action
+    // com.weisser.excel2db.DataType    CellType    Action
     // ----------------------------------
     // INTEGER     NUMERIC     as is
     // DATE        NUMERIC     getCellDateValue()
     private void processCell(StringBuffer sqlInsert, Cell cell, DataType cellTypeMeta) {
         CellType type = cell.getCellTypeEnum();
 
+
+
+
         if (type == CellType.NUMERIC && cellTypeMeta == DataType.INTEGER) {
             double dataNum = cell.getNumericCellValue();
             sqlInsert.append(dataNum);
+        } else if (type == CellType.NUMERIC && cellTypeMeta == DataType.DECIMAL) {
+            // Create a DecimalFormat that fits your requirements
+            Double cellValue = cell.getNumericCellValue();
+            sqlInsert.append(cellValue);
         } else if (type == CellType.NUMERIC && cellTypeMeta == DataType.VARCHAR2) {
             double dataNum = cell.getNumericCellValue();
             sqlInsert.append("'");
             sqlInsert.append(escapeSQLAttribute(Double.toString(dataNum)));
             sqlInsert.append("'");
-
+        } else if (type == CellType.BLANK && cellTypeMeta == DataType.VARCHAR2) {
+            sqlInsert.append("''");
         } else if (type == CellType.STRING && cellTypeMeta == DataType.INTEGER) {
+            String dataString = cell.getStringCellValue();
+            sqlInsert.append(dataString);
+        } else if (type == CellType.STRING && cellTypeMeta == DataType.BIGINT) {
             String dataString = cell.getStringCellValue();
             sqlInsert.append(dataString);
         } else if (type == CellType.STRING && cellTypeMeta == DataType.VARCHAR2) {
@@ -319,6 +372,19 @@ public class Excel2DB {
             sqlInsert.append("''");
         } else if (cellTypeMeta == DataType.DATE) {
             sqlInsert.append("null");
+        } else if (cellTypeMeta == DataType.BIGINT) {
+            sqlInsert.append("null");
         }
+    }
+
+    private static void showUsage() {
+        System.out.println("Usage:");
+        System.out.println("  java -jar excel2db.jar <excelfile> <jdbcUrl> <jdbcUser> <jdbcPassword> <jdbcDriverClass>");
+        System.out.println();
+        System.out.println("Example H2:");
+        System.out.println("  java -jar excel2db.jar data.xlsx jdbc:sqlite:D:\\testdb.db user pwd org.sqlite.JDBC");
+        System.out.println();
+        System.out.println("Example Oracle:");
+        System.out.println("  java -jar excel2db.jar data.xlsx jdbc:h2:data user pwd oracle.jdbc.driver.OracleDriver");
     }
 }

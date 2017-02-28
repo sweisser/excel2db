@@ -1,3 +1,5 @@
+package com.weisser.excel2db;
+
 import java.util.ArrayList;
 import java.util.List;
 

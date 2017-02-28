@@ -6,7 +6,7 @@
 
     <groupId>com.bmw</groupId>
     <artifactId>excel2db</artifactId>
-    <version>1.0-STABLE</version>
+    <version>1.2-SNAPSHOT</version>
 
     <build>
         <plugins>
@@ -27,7 +27,7 @@
                     <!-- put your configurations here -->
                     <transformers>
                         <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                            <mainClass>Excel2DB</mainClass>
+                            <mainClass>com.weisser.excel2db.Excel2DB</mainClass>
                         </transformer>
                     </transformers>
                 </configuration>
