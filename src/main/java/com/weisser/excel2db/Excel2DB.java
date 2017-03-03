@@ -39,6 +39,7 @@ import static java.lang.System.exit;
  * DONE Collect Metadata.
  * TODO Make Insert attribute writes more safe by using Prepared Statements.
  * TODO Encapsulate different SQL dialects.
+ * TODO Detect SQL dialect based on the given JDBC url.
  *
  * Created by q186379 on 24.01.2017.
  */
@@ -50,6 +51,8 @@ public class Excel2DB {
 
     // Table Descriptions (filled on the fly)
     List<TableDesc> tableDescList;
+
+    int databaseDialect = Dialect.H2;
 
     public static void main(String[] args) {
         // Set defaults
@@ -320,26 +323,20 @@ public class Excel2DB {
     // ----------------------------------
     // INTEGER     NUMERIC     as is
     // DATE        NUMERIC     getCellDateValue()
+    //
+    // TODO Simplify processing rule definitions -> common interface?
     private void processCell(StringBuffer sqlInsert, Cell cell, DataType cellTypeMeta) {
         CellType type = cell.getCellTypeEnum();
 
-
-
-
+        // NUMERIC
         if (type == CellType.NUMERIC && cellTypeMeta == DataType.INTEGER) {
-            double dataNum = cell.getNumericCellValue();
-            sqlInsert.append(dataNum);
+            processCellNumeric1(sqlInsert, cell, cellTypeMeta);
         } else if (type == CellType.NUMERIC && cellTypeMeta == DataType.DECIMAL) {
-            // Create a DecimalFormat that fits your requirements
-            Double cellValue = cell.getNumericCellValue();
-            sqlInsert.append(cellValue);
+            processCellNumeric1(sqlInsert, cell, cellTypeMeta);
         } else if (type == CellType.NUMERIC && cellTypeMeta == DataType.VARCHAR2) {
-            double dataNum = cell.getNumericCellValue();
-            sqlInsert.append("'");
-            sqlInsert.append(escapeSQLAttribute(Double.toString(dataNum)));
-            sqlInsert.append("'");
-        } else if (type == CellType.BLANK && cellTypeMeta == DataType.VARCHAR2) {
-            sqlInsert.append("''");
+            processCellNumeric2(sqlInsert, cell, cellTypeMeta);
+        } else if (type == CellType.NUMERIC && cellTypeMeta == DataType.DATE) {
+            processCellDate(sqlInsert, cell, cellTypeMeta);
         } else if (type == CellType.STRING && cellTypeMeta == DataType.INTEGER) {
             String dataString = cell.getStringCellValue();
             sqlInsert.append(dataString);
@@ -347,22 +344,44 @@ public class Excel2DB {
             String dataString = cell.getStringCellValue();
             sqlInsert.append(dataString);
         } else if (type == CellType.STRING && cellTypeMeta == DataType.VARCHAR2) {
-            String dataString = cell.getStringCellValue();
-            sqlInsert.append("'");
-            sqlInsert.append(escapeSQLAttribute(dataString));
-            sqlInsert.append("'");
-        } else if (type == CellType.NUMERIC && cellTypeMeta == DataType.DATE) {
-            DateFormat df = new SimpleDateFormat("dd MM yyyy");
-            java.util.Date date = cell.getDateCellValue();
-
-            // H2 Syntax
-            // PARSEDATETIME('26 Jul 2016, 05:15:58 AM','dd MMM yyyy, hh:mm:ss a','en')
-            sqlInsert.append("PARSEDATETIME(");
-            sqlInsert.append("'");
-            sqlInsert.append(df.format(date));
-            sqlInsert.append("',");
-            sqlInsert.append("'dd MM yyyy','en')");
+            processCellString1(sqlInsert, cell, cellTypeMeta);
+        } else if (type == CellType.BLANK && cellTypeMeta == DataType.VARCHAR2) {
+            sqlInsert.append("''");
         }
+    }
+
+    private void processCellNumeric1(StringBuffer sqlInsert, Cell cell, DataType cellTypeMeta) {
+        double cellValue = cell.getNumericCellValue();
+        sqlInsert.append(cellValue);
+    }
+
+    private void processCellNumeric2(StringBuffer sqlInsert, Cell cell, DataType cellTypeMeta) {
+        double cellValue = cell.getNumericCellValue();
+
+        sqlInsert.append("'");
+        sqlInsert.append(escapeSQLAttribute(Double.toString(cellValue)));
+        sqlInsert.append("'");
+    }
+
+    private void processCellString1(StringBuffer sqlInsert, Cell cell, DataType cellTypeMeta) {
+        String dataString = cell.getStringCellValue();
+        sqlInsert.append("'");
+        sqlInsert.append(escapeSQLAttribute(dataString));
+        sqlInsert.append("'");
+    }
+
+    private void processCellDate(StringBuffer sqlInsert, Cell cell, DataType cellTypeMeta) {
+        DateFormat df = new SimpleDateFormat("dd MM yyyy");
+        java.util.Date date = cell.getDateCellValue();
+
+        // H2 Syntax
+        // PARSEDATETIME('26 Jul 2016, 05:15:58 AM','dd MMM yyyy, hh:mm:ss a','en')
+        sqlInsert.append("PARSEDATETIME(");
+        sqlInsert.append("'");
+        sqlInsert.append(df.format(date));
+        sqlInsert.append("',");
+        sqlInsert.append("'dd MM yyyy','en')");
+        // STRING
     }
 
     private void processCellEmpty(StringBuffer sqlInsert, DataType cellTypeMeta) {
