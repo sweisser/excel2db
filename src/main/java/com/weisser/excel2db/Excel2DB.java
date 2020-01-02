@@ -40,8 +40,6 @@ import static java.lang.System.exit;
  * TODO Make Insert attribute writes more safe by using Prepared Statements.
  * TODO Encapsulate different SQL dialects.
  * TODO Detect SQL dialect based on the given JDBC url.
- *
- * Created by q186379 on 24.01.2017.
  */
 public class Excel2DB {
     private boolean dropTablesFirst = true;
